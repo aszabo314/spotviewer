@@ -5,10 +5,16 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="nouislider.css" />
+    <EmbeddedResource Include="nouislider.js" />
     <Compile Include="Model.fs" />
     <Compile Include="App.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
+
+  <ItemGroup />
+
+  <ItemGroup />
 
   <Import Project="..\..\.paket\Paket.Restore.targets" />
 </Project>
