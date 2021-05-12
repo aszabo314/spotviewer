@@ -92,6 +92,50 @@ module App =
             Frustum.perspective 10.0 0.1 500.0 0.1
                 |> AVal.constant
         
+        let robotLines =
+            let lineList = 
+                m.botTrafos 
+                |> AMap.filterA (fun i v -> 
+                    m.activeRange |> AVal.map (fun r -> r.Contains i)
+                )
+                |> AMap.toAVal
+                |> AVal.bind (fun botMap -> 
+                    let verts = 
+                        botMap
+                        |> HashMap.toArray
+                        |> Array.collect (fun (i,trafos) -> trafos |> Array.map (fun t -> i,t))
+                        |> Array.windowed 2
+                        |> Array.choose (fun pair -> 
+                            let (i0,trafo0) = pair.[0]
+                            let (i1,trafo1) = pair.[1]
+                            if abs(i1-i0) <= 1 then 
+                                let real0 = 
+                                    m.icp |> AVal.bind (fun icp -> 
+                                        if icp then m.clouds |> AMap.tryFind i0 |> AVal.map (fun cloud -> trafo0 * (cloud |> Option.map (fun c -> c.trafo) |> Option.defaultValue Trafo3d.Identity))
+                                        else AVal.constant trafo0
+                                    )
+                                let real1 = 
+                                    m.icp |> AVal.bind (fun icp -> 
+                                        if icp then m.clouds |> AMap.tryFind i1 |> AVal.map (fun cloud -> trafo1 * (cloud |> Option.map (fun c -> c.trafo) |> Option.defaultValue Trafo3d.Identity))
+                                        else AVal.constant trafo1
+                                    )
+                                Some (AVal.map2 (fun (r0 : Trafo3d) (r1 : Trafo3d) -> [|r0.Forward.C3.XYZ; r1.Forward.C3.XYZ|]) real0 real1)
+                            else None
+                        )
+                    AVal.custom (fun t -> 
+                        verts |> Array.collect (fun v -> v.GetValue(t))
+                    )
+                )
+            Sg.draw IndexedGeometryMode.LineList
+            |> Sg.vertexAttribute DefaultSemantic.Positions lineList
+            |> Sg.shader {
+                do! DefaultSurfaces.trafo
+                do! DefaultSurfaces.thickLine
+                do! DefaultSurfaces.constantColor C4f.LightGoldenRodYellow
+            }
+            |> Sg.uniform "LineWidth" (AVal.constant 1.5)
+            |> Sg.onOff m.spot
+
         let robotBoxes = 
             m.botTrafos 
             |> AMap.toAVal 
@@ -112,7 +156,7 @@ module App =
                                         else trafo
                                     )
                             )
-                        let box = Box3d(V3d(-0.5,-0.25,-0.15), V3d(0.5,0.25,0.15))
+                        let box = Box3d(V3d(-0.4,-0.2,-0.125), V3d(0.4,0.2,0.125))
                         Sg.box (AVal.constant C4b.Blue) (AVal.constant box)
                         |> Sg.trafo finalTrafo
                     )
@@ -167,7 +211,7 @@ module App =
                     projTrafo = values.projTrafo
                     size = values.size
                     colors = AVal.constant false
-                    pointSize = AVal.constant 10.0
+                    pointSize = AVal.constant 7.0
                     planeFit = AVal.constant true
                     planeFitTol = AVal.constant 0.009
                     planeFitRadius = AVal.constant 7.0
@@ -191,7 +235,7 @@ module App =
                 Sg.pointSets renderConfig lodTreeInstances
                 |> Sg.noEvents
 
-            Sg.ofList [pointSg; robotBoxes]
+            Sg.ofList [pointSg; robotBoxes; robotLines]
                 
         let dependencies = 
             [
@@ -259,12 +303,20 @@ module App =
 
         ]
 
+    //let initial = 
+    //    let inline u a b = update b a 
+    //    Model.initial
+    //    |> u (SetBotTrafos     @"C:\bla\stores\vrvis-ultra-individualChunks\botTrafos.txt")
+    //    |> u (SetStore         @"C:\bla\stores\vrvis-ultra-individualChunks\store")
+    //    |> u (SetKeysAndTrafos @"C:\bla\stores\vrvis-ultra-individualChunks\keys.txt")
+
+    
     let initial = 
         let inline u a b = update b a 
         Model.initial
-        |> u (SetBotTrafos     @"C:\bla\stores\vrvis-ultra-individualChunks\botTrafos.txt")
-        |> u (SetStore         @"C:\bla\stores\vrvis-ultra-individualChunks\store")
-        |> u (SetKeysAndTrafos @"C:\bla\stores\vrvis-ultra-individualChunks\keys.txt")
+        |> u (SetBotTrafos     @"vrvis-ultra-individualChunks\botTrafos.txt")
+        |> u (SetStore         @"vrvis-ultra-individualChunks\store")
+        |> u (SetKeysAndTrafos @"vrvis-ultra-individualChunks\keys.txt")
 
     let app (rt : IRuntime) =
         {
